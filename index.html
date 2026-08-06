@@ -175,6 +175,61 @@
     margin-top: 6px;
   }
 
+  .voice-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  #voice-language-select {
+    flex: 1;
+    font-size: 0.9rem;
+    padding: 10px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-family: inherit;
+  }
+
+  #mic-btn {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface-alt, var(--bg));
+    font-size: 1.3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+
+  #mic-btn.listening {
+    background: var(--danger);
+    border-color: var(--danger);
+    animation: mic-pulse 1.1s ease-in-out infinite;
+  }
+
+  #mic-btn:disabled {
+    opacity: 0.4;
+  }
+
+  @keyframes mic-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(185, 28, 28, 0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(185, 28, 28, 0); }
+  }
+
+  #voice-status {
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    min-height: 1.2em;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+
   button {
     font-family: inherit;
     cursor: pointer;
@@ -331,6 +386,20 @@
 
   <section id="entry-section">
     <h2>Add a box number</h2>
+    <div class="voice-row">
+      <select id="voice-language-select">
+        <option value="en-US">English</option>
+        <option value="es-US">Spanish</option>
+        <option value="pt-BR">Portuguese</option>
+        <option value="ht-HT">Haitian Creole</option>
+        <option value="zh-CN">Mandarin</option>
+        <option value="vi-VN">Vietnamese</option>
+        <option value="ar-SA">Arabic</option>
+        <option value="hi-IN">Hindi</option>
+      </select>
+      <button id="mic-btn" type="button" aria-label="Speak a number">🎤</button>
+    </div>
+    <div id="voice-status"></div>
     <form id="entry-form">
       <input id="entry-number" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="000" autocomplete="off">
       <div id="entry-error"></div>
@@ -415,6 +484,9 @@
   const exportButton = document.getElementById("export-btn");
   const resetButton = document.getElementById("reset-btn");
   const toast = document.getElementById("toast");
+  const micButton = document.getElementById("mic-btn");
+  const voiceLanguageSelect = document.getElementById("voice-language-select");
+  const voiceStatus = document.getElementById("voice-status");
 
   function updateCount() {
     countLabel.textContent = usedNumbers.size + " recorded";
@@ -491,6 +563,84 @@
     entryError.textContent = "";
     openConfirm(result.label);
   });
+
+  // --- Voice input ---
+  const VOICE_LANGUAGE_STORAGE_KEY = "boxInventory.voiceLanguage";
+  const SpeechRecognitionImpl = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let recognition = null;
+  let isListening = false;
+
+  voiceLanguageSelect.value = localStorage.getItem(VOICE_LANGUAGE_STORAGE_KEY) || "en-US";
+
+  voiceLanguageSelect.addEventListener("change", () => {
+    localStorage.setItem(VOICE_LANGUAGE_STORAGE_KEY, voiceLanguageSelect.value);
+  });
+
+  function extractDigits(transcript) {
+    return transcript.replace(/\D/g, "");
+  }
+
+  function stopListening() {
+    isListening = false;
+    micButton.classList.remove("listening");
+  }
+
+  function handleVoiceResult(event) {
+    const transcript = Array.from(event.results)
+      .map((result) => result[0].transcript)
+      .join(" ")
+      .trim();
+    const isFinal = event.results[event.results.length - 1].isFinal;
+
+    voiceStatus.textContent = 'Heard: "' + transcript + '"';
+
+    if (!isFinal) {
+      return;
+    }
+
+    const digits = extractDigits(transcript);
+    if (digits === "") {
+      showToast("Didn't catch a number — try again");
+      return;
+    }
+
+    entryNumberInput.value = digits;
+    entryForm.requestSubmit();
+  }
+
+  function startListening() {
+    recognition = new SpeechRecognitionImpl();
+    recognition.lang = voiceLanguageSelect.value;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    recognition.addEventListener("result", handleVoiceResult);
+    recognition.addEventListener("end", stopListening);
+    recognition.addEventListener("error", (event) => {
+      stopListening();
+      voiceStatus.textContent = "";
+      showToast("Voice error: " + event.error);
+    });
+
+    isListening = true;
+    micButton.classList.add("listening");
+    voiceStatus.textContent = "Listening...";
+    recognition.start();
+  }
+
+  if (!SpeechRecognitionImpl) {
+    micButton.disabled = true;
+    micButton.title = "Voice input isn't supported on this browser";
+    voiceStatus.textContent = "Voice input isn't supported on this browser.";
+  } else {
+    micButton.addEventListener("click", () => {
+      if (isListening) {
+        recognition.stop();
+        return;
+      }
+      startListening();
+    });
+  }
 
   confirmYesButton.addEventListener("click", () => {
     if (pendingNumber === null) {
