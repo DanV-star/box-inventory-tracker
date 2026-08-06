@@ -590,6 +590,7 @@
 
   const VOICE_STABILIZE_DELAY_MS = 500;
   let voiceStabilizeTimer = null;
+  let voiceEntryFinalized = false;
 
   function extractDigits(transcript) {
     return transcript.replace(/\D/g, "");
@@ -603,6 +604,19 @@
   }
 
   function finishVoiceEntry(transcript) {
+    if (voiceEntryFinalized) {
+      return;
+    }
+    voiceEntryFinalized = true;
+
+    if (isListening) {
+      try {
+        recognition.stop();
+      } catch (e) {
+        // Recognition may have already ended on its own; nothing to do.
+      }
+    }
+
     const digits = extractDigits(transcript);
     if (digits === "") {
       showToast("Didn't catch a number — try again");
@@ -614,6 +628,10 @@
   }
 
   function handleVoiceResult(event) {
+    if (voiceEntryFinalized) {
+      return;
+    }
+
     const latestResult = event.results[event.results.length - 1];
     const transcript = Array.from(event.results)
       .map((result) => result[0].transcript)
@@ -630,22 +648,19 @@
 
     // Recognizers wait for a pause in speech before marking a result final,
     // which feels laggy for a quick 3-digit number. Once an interim result
-    // has held digits for a short moment, stop proactively instead of
-    // waiting on the browser's default silence-detection timeout.
+    // has held digits for a short moment, finalize right here instead of
+    // waiting on (and depending on) the recognizer's own silence-detection
+    // timeout — some implementations (notably iOS Safari) don't reliably
+    // emit a final result after stop() is called proactively.
     if (extractDigits(transcript) !== "") {
       voiceStabilizeTimer = window.setTimeout(() => {
-        if (isListening) {
-          try {
-            recognition.stop();
-          } catch (e) {
-            // Recognition may have already ended on its own; nothing to do.
-          }
-        }
+        finishVoiceEntry(transcript);
       }, VOICE_STABILIZE_DELAY_MS);
     }
   }
 
   function startListening() {
+    voiceEntryFinalized = false;
     recognition = new SpeechRecognitionImpl();
     recognition.lang = voiceLanguageSelect.value;
     recognition.interimResults = true;
