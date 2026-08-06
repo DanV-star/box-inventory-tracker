@@ -396,6 +396,8 @@
         <option value="vi-VN">Vietnamese</option>
         <option value="ar-SA">Arabic</option>
         <option value="hi-IN">Hindi</option>
+        <option value="ro-RO">Romanian</option>
+        <option value="sr-RS">Serbian</option>
       </select>
       <button id="mic-btn" type="button" aria-label="Speak a number">🎤</button>
     </div>
@@ -605,6 +607,20 @@
     "vi-VN": { "không": "0", "một": "1", hai: "2", ba: "3", "bốn": "4", "năm": "5", "sáu": "6", "bảy": "7", "tám": "8", "chín": "9" },
     "ar-SA": { "صفر": "0", "واحد": "1", "اثنان": "2", "اثنين": "2", "ثلاثة": "3", "أربعة": "4", "خمسة": "5", "ستة": "6", "سبعة": "7", "ثمانية": "8", "تسعة": "9" },
     "hi-IN": { "शून्य": "0", "एक": "1", "दो": "2", "तीन": "3", "चार": "4", "पांच": "5", "छह": "6", "सात": "7", "आठ": "8", "नौ": "9" },
+    "ro-RO": { zero: "0", unu: "1", una: "1", doi: "2", "două": "2", trei: "3", patru: "4", cinci: "5", "șase": "6", "sase": "6", "șapte": "7", "sapte": "7", opt: "8", "nouă": "9", "noua": "9" },
+    // Serbian ASR may return either Cyrillic or Latin script depending on the engine, so both are mapped.
+    "sr-RS": {
+      "нула": "0", nula: "0",
+      "један": "1", jedan: "1",
+      "два": "2", dva: "2",
+      "три": "3", tri: "3",
+      "четири": "4", "četiri": "4", cetiri: "4",
+      "пет": "5", pet: "5",
+      "шест": "6", "šest": "6", sest: "6",
+      "седам": "7", sedam: "7",
+      "осам": "8", osam: "8",
+      "девет": "9", devet: "9",
+    },
   };
 
   function extractDigits(transcript) {
