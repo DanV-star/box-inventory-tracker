@@ -592,8 +592,29 @@
   let voiceStabilizeTimer = null;
   let voiceEntryFinalized = false;
 
+  // Recognizers reliably convert a run of spoken digits ("zero four seven")
+  // into numeral form, but a single lone digit word ("three") is ambiguous
+  // to them and often gets left as text instead of becoming "3". This table
+  // lets us catch that case per supported language.
+  const DIGIT_WORDS = {
+    "en-US": { zero: "0", one: "1", two: "2", three: "3", four: "4", five: "5", six: "6", seven: "7", eight: "8", nine: "9" },
+    "es-US": { cero: "0", uno: "1", dos: "2", tres: "3", cuatro: "4", cinco: "5", seis: "6", siete: "7", ocho: "8", nueve: "9" },
+    "pt-BR": { zero: "0", um: "1", uma: "1", dois: "2", duas: "2", "três": "3", quatro: "4", cinco: "5", seis: "6", sete: "7", oito: "8", nove: "9" },
+    "ht-HT": { zewo: "0", en: "1", youn: "1", de: "2", twa: "3", kat: "4", senk: "5", sis: "6", "sèt": "7", uit: "8", wit: "8", "nèf": "9" },
+    "zh-CN": { "零": "0", "一": "1", "二": "2", "两": "2", "三": "3", "四": "4", "五": "5", "六": "6", "七": "7", "八": "8", "九": "9" },
+    "vi-VN": { "không": "0", "một": "1", hai: "2", ba: "3", "bốn": "4", "năm": "5", "sáu": "6", "bảy": "7", "tám": "8", "chín": "9" },
+    "ar-SA": { "صفر": "0", "واحد": "1", "اثنان": "2", "اثنين": "2", "ثلاثة": "3", "أربعة": "4", "خمسة": "5", "ستة": "6", "سبعة": "7", "ثمانية": "8", "تسعة": "9" },
+    "hi-IN": { "शून्य": "0", "एक": "1", "दो": "2", "तीन": "3", "चार": "4", "पांच": "5", "छह": "6", "सात": "7", "आठ": "8", "नौ": "9" },
+  };
+
   function extractDigits(transcript) {
-    return transcript.replace(/\D/g, "");
+    const wordMap = DIGIT_WORDS[voiceLanguageSelect.value] || DIGIT_WORDS["en-US"];
+    const tokens = transcript.toLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+
+    return tokens
+      .map((token) => (/^\d+$/.test(token) ? token : wordMap[token]))
+      .filter((token) => token !== undefined)
+      .join("");
   }
 
   function stopListening() {
