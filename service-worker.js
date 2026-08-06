@@ -1,4 +1,4 @@
-const CACHE_NAME = "box-inventory-v6";
+const CACHE_NAME = "box-inventory-v7";
 const APP_SHELL = ["./index.html", "./manifest.json", "./icon.svg", "./apple-touch-icon.png"];
 
 self.addEventListener("install", (event) => {
