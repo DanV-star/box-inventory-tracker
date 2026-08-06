@@ -532,8 +532,12 @@
     return { valid: true, label: formatNumber(parsed) };
   }
 
-  function openConfirm(label) {
+  let pendingWasVoice = false;
+  let entryTriggeredByVoice = false;
+
+  function openConfirm(label, wasVoice) {
     pendingNumber = label;
+    pendingWasVoice = !!wasVoice;
     confirmNumberLabel.textContent = label;
     if (usedNumbers.has(label)) {
       confirmWarning.textContent = label + " was already recorded. Add it again?";
@@ -550,18 +554,26 @@
     confirmSection.classList.add("hidden");
     entrySection.classList.remove("hidden");
     entryNumberInput.value = "";
-    entryNumberInput.focus();
+    // Only pop the on-screen keyboard back up for the typing flow — after a
+    // voice entry the user almost certainly wants to tap the mic again, not
+    // have the keyboard shoved in front of the screen.
+    if (!pendingWasVoice) {
+      entryNumberInput.focus();
+    }
+    pendingWasVoice = false;
   }
 
   entryForm.addEventListener("submit", (event) => {
     event.preventDefault();
     const result = parseEntry(entryNumberInput.value);
+    const wasVoice = entryTriggeredByVoice;
+    entryTriggeredByVoice = false;
     if (!result.valid) {
       entryError.textContent = result.message;
       return;
     }
     entryError.textContent = "";
-    openConfirm(result.label);
+    openConfirm(result.label, wasVoice);
   });
 
   // --- Voice input ---
@@ -576,6 +588,9 @@
     localStorage.setItem(VOICE_LANGUAGE_STORAGE_KEY, voiceLanguageSelect.value);
   });
 
+  const VOICE_STABILIZE_DELAY_MS = 500;
+  let voiceStabilizeTimer = null;
+
   function extractDigits(transcript) {
     return transcript.replace(/\D/g, "");
   }
@@ -583,29 +598,51 @@
   function stopListening() {
     isListening = false;
     micButton.classList.remove("listening");
+    window.clearTimeout(voiceStabilizeTimer);
+    voiceStabilizeTimer = null;
   }
 
-  function handleVoiceResult(event) {
-    const transcript = Array.from(event.results)
-      .map((result) => result[0].transcript)
-      .join(" ")
-      .trim();
-    const isFinal = event.results[event.results.length - 1].isFinal;
-
-    voiceStatus.textContent = 'Heard: "' + transcript + '"';
-
-    if (!isFinal) {
-      return;
-    }
-
+  function finishVoiceEntry(transcript) {
     const digits = extractDigits(transcript);
     if (digits === "") {
       showToast("Didn't catch a number — try again");
       return;
     }
-
     entryNumberInput.value = digits;
+    entryTriggeredByVoice = true;
     entryForm.requestSubmit();
+  }
+
+  function handleVoiceResult(event) {
+    const latestResult = event.results[event.results.length - 1];
+    const transcript = Array.from(event.results)
+      .map((result) => result[0].transcript)
+      .join(" ")
+      .trim();
+
+    voiceStatus.textContent = 'Heard: "' + transcript + '"';
+    window.clearTimeout(voiceStabilizeTimer);
+
+    if (latestResult.isFinal) {
+      finishVoiceEntry(transcript);
+      return;
+    }
+
+    // Recognizers wait for a pause in speech before marking a result final,
+    // which feels laggy for a quick 3-digit number. Once an interim result
+    // has held digits for a short moment, stop proactively instead of
+    // waiting on the browser's default silence-detection timeout.
+    if (extractDigits(transcript) !== "") {
+      voiceStabilizeTimer = window.setTimeout(() => {
+        if (isListening) {
+          try {
+            recognition.stop();
+          } catch (e) {
+            // Recognition may have already ended on its own; nothing to do.
+          }
+        }
+      }, VOICE_STABILIZE_DELAY_MS);
+    }
   }
 
   function startListening() {
